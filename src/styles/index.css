@@ -1742,6 +1742,10 @@
   margin-bottom: 2rem;
 }
 
+.Vendor-Detail-Page .Polaris-TextField__VerticalContent {
+  overflow: hidden;
+}
+
 .Market-Edit-Countries-Scroll {
   max-height: 370px;
 }

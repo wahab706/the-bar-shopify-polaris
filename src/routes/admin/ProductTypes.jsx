@@ -422,7 +422,7 @@ export function ProductTypes() {
     });
     try {
       const response = await axios.post(
-        `${apiUrl}/api/admin/product/type/${id}`,
+        `${apiUrl}/api/product/type/details/${id}`,
         {},
         {
           headers: { Authorization: `Bearer ${getAccessToken()}` },

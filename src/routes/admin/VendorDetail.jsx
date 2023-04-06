@@ -24,8 +24,12 @@ import {
   Modal,
   OptionList,
   Autocomplete,
+  Listbox,
+  AutoSelection,
+  Combobox,
   Badge,
   Layout,
+  Text,
 } from "@shopify/polaris";
 import {
   SearchMinor,
@@ -50,6 +54,7 @@ import axios from "axios";
 import EmptyCheckBox from "../../assets/icons/EmptyCheckBox.png";
 import FillCheckBox from "../../assets/icons/FillCheckBox.png";
 import CheckboxTree from "react-checkbox-tree";
+import { LogarithmicScale } from "chart.js";
 
 export function VendorDetail() {
   const params = useParams();
@@ -69,6 +74,10 @@ export function VendorDetail() {
   const [vendorsList, setVendorsList] = useState([]);
   const [vendorError, setVendorError] = useState();
   const [marketsList, setMarketsList] = useState([]);
+  const [productTypesList, setProductTypesList] = useState([]);
+
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [comboBoxValue, setComboBoxValue] = useState("");
 
   const [passwordErrorMsg, setPasswordErrorMsg] = useState("");
   const [hidePassword, setHidePassword] = useState(true);
@@ -89,124 +98,30 @@ export function VendorDetail() {
   });
 
   const handleNewVendorDetails = (e) => {
-    if (e.target.name == "status") {
-      setNewVendor({ ...newVendor, [e.target.name]: e.target.checked });
-    } else {
-      setNewVendor({ ...newVendor, [e.target.name]: e.target.value });
-    }
+    setNewVendor({ ...newVendor, [e.target.name]: e.target.value });
     if (e.target.name == "password" || e.target.name == "cPassword") {
       setPasswordErrorMsg("");
     }
   };
 
-  // -------------------Tags------------------------
-
-  const [tagOptionsSelected, setTagOptionsSelected] = useState("");
-  const [tagInputValue, setTagInputValue] = useState("");
-  const [tagOptions, setTagOptions] = useState([]);
-  const [tagsModal, setTagsModal] = useState(false);
-  const [optionsLoading, setOptionsLoading] = useState(false);
-  const handleTagsModal = useCallback(
-    () => setTagsModal(!tagsModal),
-    [tagsModal]
-  );
-
-  const tagUpdateText = useCallback(
-    (value) => {
-      setTagInputValue(value);
-
-      if (!optionsLoading) {
-        setOptionsLoading(true);
+  const updateSelection = useCallback(
+    (selected, id) => {
+      const tagsFromSelectedId = selectedTags[id] ? selectedTags[id] : [];
+      const nextSelectedTags = selected && new Set([...tagsFromSelectedId]);
+      if (nextSelectedTags.has(selected)) {
+        nextSelectedTags.delete(selected);
+      } else {
+        nextSelectedTags.add(selected);
       }
-
-      setTimeout(() => {
-        if (value === "") {
-          let list = [];
-          vendorsList?.map((item) => {
-            list.push({
-              value: item.id,
-              label: item.name,
-            });
-          });
-          setTagOptions(list);
-          setOptionsLoading(false);
-          return;
-        }
-
-        const filterRegex = new RegExp(value, "i");
-        const resultOptions = vendorsList.filter((option) =>
-          option.name.match(filterRegex)
-        );
-        let endIndex = resultOptions.length - 1;
-        if (resultOptions.length === 0) {
-          endIndex = 0;
-        }
-        let list = [];
-        resultOptions?.map((item) => {
-          list.push({
-            value: item.id,
-            label: item.name,
-          });
-        });
-        setTagOptions(list);
-        setOptionsLoading(false);
-      }, 300);
+      setSelectedTags({ ...selectedTags, [id]: [...nextSelectedTags] });
+      setComboBoxValue({ ...comboBoxValue, [id]: "" });
     },
-    [vendorsList, optionsLoading, tagOptionsSelected]
+    [selectedTags]
   );
 
-  const removeTag = useCallback(
-    (tag) => () => {
-      const tagOptions = [...tagOptionsSelected];
-      tagOptions.splice(tagOptions.indexOf(tag), 1);
-      setTagOptionsSelected(tagOptions);
-    },
-    [tagOptionsSelected]
-  );
-
-  const tagsContentMarkup =
-    tagOptionsSelected?.length > 0 &&
-    vendorsList?.length &&
-    tagOptions?.length ? (
-      <div className="Product-Tags-Stack">
-        <Stack spacing="extraTight" alignment="center">
-          {tagOptionsSelected.map((option) => {
-            let tagLabel = "";
-            let title = vendorsList?.find((obj) => obj.id == option);
-            if (title) {
-              tagLabel = title.name;
-            }
-            tagLabel = tagLabel.replace("_", " ");
-            tagLabel = tagTitleCase(tagLabel);
-            return (
-              <Tag key={`option${option}`} onRemove={removeTag(option)}>
-                {tagLabel}
-              </Tag>
-            );
-          })}
-        </Stack>
-      </div>
-    ) : null;
-
-  function tagTitleCase(string) {
-    return string
-      .toLowerCase()
-      .split(" ")
-      .map((word) => word.replace(word[0], word[0].toUpperCase()))
-      .join("");
-  }
-
-  const tagTextField = (
-    <Autocomplete.TextField
-      autoComplete="off"
-      onChange={tagUpdateText}
-      label="Vendors"
-      value={tagInputValue}
-      prefix={<Icon source={SearchMinor} color="base" />}
-      placeholder="Select Vendors"
-      // verticalContent={tagsContentMarkup}
-    />
-  );
+  const handleZipInputs = (value, id) => {
+    setComboBoxValue({ ...comboBoxValue, [id]: value });
+  };
 
   // ------------------------Toasts Code start here------------------
   const toggleErrorMsgActive = useCallback(
@@ -285,7 +200,7 @@ export function VendorDetail() {
       if (error.response?.message) {
         setToastMsg(error.response?.message);
       } else {
-        setToastMsg("Something Went Wrong, Try Again!");
+        setToastMsg("Something Went Wrong, Please Reload the page!");
       }
       setErrorToast(true);
     }
@@ -306,11 +221,15 @@ export function VendorDetail() {
         }
       );
 
-      //   console.log("editVendor response: ", response.data);
+      // console.log(
+      //   "editVendor response: ",
+      //   response.data?.vendor?.product_types
+      // );
       if (!response?.data?.success) {
         setToastMsg(response?.data?.message);
         setErrorToast(true);
       } else {
+        let productTypesResponse = response.data?.list_product_type;
         let vendorResponse = response.data?.vendor;
         setVendorId(vendorResponse?.id);
         setVendorName(vendorResponse?.name);
@@ -329,8 +248,44 @@ export function VendorDetail() {
           state: vendorResponse?.details?.state,
           address_line1: vendorResponse?.details?.address_line1,
           address_line2: vendorResponse?.details?.address_line2,
-          status: convertNumberToBoolean(vendorResponse?.status),
+          status: vendorResponse?.status,
         });
+        let list = [];
+        productTypesResponse?.map((item) => {
+          list.push({
+            id: item.id,
+            name: item.name,
+          });
+        });
+        setProductTypesList(list);
+
+        if (vendorResponse.product_types?.length) {
+          const emptyArrays = vendorResponse.product_types?.reduce(
+            (result, { product_type_id, zipcodes }) => {
+              result[product_type_id] = zipcodes ? JSON.parse(zipcodes) : [];
+              return result;
+            },
+            {}
+          );
+          setSelectedTags(emptyArrays);
+        }
+
+        if (vendorResponse?.product_types?.length > 0) {
+          const emptyArrays = vendorResponse.product_types?.reduce(
+            (result, { product_type_id, zipcodes }) => {
+              result[product_type_id] = zipcodes ? JSON.parse(zipcodes) : [];
+              return result;
+            },
+            {}
+          );
+          setSelectedTags(emptyArrays);
+        } else {
+          const emptyArrays = productTypesResponse.reduce((result, { id }) => {
+            result[id] = [];
+            return result;
+          }, {});
+          setSelectedTags(emptyArrays);
+        }
 
         setLoading(false);
         setToggleLoadData(false);
@@ -391,6 +346,10 @@ export function VendorDetail() {
       }
       return { ...toggleId };
     });
+    const types = productTypesList.map((item) => item.id);
+    const sortedTypes = types.sort((a, b) => a - b);
+    const sortedKeys = Object.keys(selectedTags).sort((a, b) => a - b);
+    const soertedZip = sortedKeys.map((key) => selectedTags[key]);
 
     let data = {
       first_name: newVendor.first_name,
@@ -399,13 +358,15 @@ export function VendorDetail() {
       phone: newVendor.phone,
       password: newVendor.password,
       password_confirmation: newVendor.cPassword,
-      status: convertBooleanToNumber(newVendor.status),
+      status: newVendor.status,
       address_line1: newVendor.address_line1,
       address_line2: newVendor.address_line2,
       state: newVendor.state,
       city: newVendor.city,
       zipCode: newVendor.zipCode,
       market_id: newVendor.market_id,
+      zipcodes: soertedZip,
+      product_type_id: sortedTypes,
     };
 
     try {
@@ -465,32 +426,6 @@ export function VendorDetail() {
         </Modal.Section>
       </Modal>
 
-      <Modal
-        open={tagsModal}
-        onClose={handleTagsModal}
-        title="Manage Vendors"
-        primaryAction={{
-          content: "Done",
-          onAction: () => {
-            setTagsModal(false);
-          },
-        }}
-      >
-        <Modal.Section>
-          <div className="Modal-Product-Tags">
-            <Scrollable className="Market-Edit-Vendors-Scroll">
-              <OptionList
-                title="AVAILABLE"
-                onChange={setTagOptionsSelected}
-                options={tagOptions}
-                selected={tagOptionsSelected}
-                allowMultiple
-              />
-            </Scrollable>
-          </div>
-        </Modal.Section>
-      </Modal>
-
       {loading ? (
         <span>
           <Loading />
@@ -498,6 +433,7 @@ export function VendorDetail() {
         </span>
       ) : (
         <Page
+          fullWidth
           breadcrumbs={[{ content: "Vendor", onAction: handleDiscardModal }]}
           title={vendorName}
           titleMetadata={
@@ -540,215 +476,254 @@ export function VendorDetail() {
               </Button>
             </span>
 
-            {/* <Layout>
-              <Layout.Section></Layout.Section>
-              <Layout.Section oneThird></Layout.Section>
-            </Layout> */}
+            <Layout>
+              <Layout.Section>
+                <Card sectioned title="Personal Details">
+                  <FormLayout>
+                    <FormLayout.Group>
+                      <InputField
+                        type="text"
+                        label="First Name"
+                        name="first_name"
+                        value={newVendor.first_name}
+                        onChange={handleNewVendorDetails}
+                        autoComplete="off"
+                        required
+                        placeholder="Enter First Name"
+                      />
+                      <InputField
+                        type="text"
+                        label="Last Name"
+                        name="last_name"
+                        value={newVendor.last_name}
+                        onChange={handleNewVendorDetails}
+                        autoComplete="off"
+                        required
+                        placeholder="Enter Last Name"
+                      />
+                    </FormLayout.Group>
 
-            <Card sectioned title="General Information">
-              <FormLayout>
-                <FormLayout.Group>
-                  <InputField
-                    type="text"
-                    label="First Name"
-                    name="first_name"
-                    value={newVendor.first_name}
-                    onChange={handleNewVendorDetails}
-                    autoComplete="off"
-                    required
-                    placeholder="Enter First Name"
-                  />
-                  <InputField
-                    type="text"
-                    label="Last Name"
-                    name="last_name"
-                    value={newVendor.last_name}
-                    onChange={handleNewVendorDetails}
-                    autoComplete="off"
-                    required
-                    placeholder="Enter Last Name"
-                  />
-                </FormLayout.Group>
-
-                <InputField
-                  type="email"
-                  label="Email"
-                  name="email"
-                  required
-                  value={newVendor.email}
-                  onChange={handleNewVendorDetails}
-                  autoComplete="off"
-                  placeholder="Enter Email"
-                />
-
-                <InputField
-                  type="number"
-                  label="Phone"
-                  name="phone"
-                  required
-                  value={newVendor.phone}
-                  onChange={handleNewVendorDetails}
-                  autoComplete="off"
-                  placeholder="Enter Phone"
-                />
-                <InputField
-                  type="text"
-                  label="City"
-                  name="city"
-                  value={newVendor.city}
-                  onChange={handleNewVendorDetails}
-                  autoComplete="off"
-                  required
-                  placeholder="Enter City"
-                />
-                <FormLayout.Group>
-                  <InputField
-                    type="text"
-                    label="State"
-                    name="state"
-                    value={newVendor.state}
-                    onChange={handleNewVendorDetails}
-                    autoComplete="off"
-                    required
-                    placeholder="Enter State"
-                  />
-                  <InputField
-                    type="text"
-                    label="Zip Code"
-                    name="zipCode"
-                    value={newVendor.zipCode}
-                    onChange={handleNewVendorDetails}
-                    autoComplete="off"
-                    required
-                    placeholder="Enter Zip Code"
-                  />
-                </FormLayout.Group>
-
-                <InputField
-                  type="text"
-                  label="Address 1"
-                  name="address_line1"
-                  multiline={"3"}
-                  value={newVendor.address_line1}
-                  onChange={handleNewVendorDetails}
-                  autoComplete="off"
-                  placeholder="Enter Address"
-                />
-
-                <InputField
-                  type="text"
-                  label="Address 2 (optional)"
-                  name="address_line2"
-                  multiline={"3"}
-                  value={newVendor.address_line2}
-                  onChange={handleNewVendorDetails}
-                  autoComplete="off"
-                  placeholder="Enter Address"
-                />
-
-                <FormLayout.Group>
-                  <div className="Icon-TextFiled">
                     <InputField
-                      value={newVendor.password}
-                      name="password"
-                      onChange={handleNewVendorDetails}
-                      label="Password"
-                      type={hidePassword ? "password" : "text"}
-                      autoComplete="off"
-                      placeholder="Enter Password"
+                      type="email"
+                      label="Email"
+                      name="email"
                       required
-                      error={passwordErrorMsg}
+                      value={newVendor.email}
+                      onChange={handleNewVendorDetails}
+                      autoComplete="off"
+                      placeholder="Enter Email"
                     />
-                    <span
-                      onClick={() => setHidePassword(!hidePassword)}
-                      className="Icon-Section"
-                    >
-                      {hidePassword ? (
-                        <Icon source={HidePassword} color="subdued" />
-                      ) : (
-                        <Icon source={ShowPassword} color="subdued" />
-                      )}
-                    </span>
-                  </div>
 
-                  <div className="Icon-TextFiled">
                     <InputField
-                      value={newVendor.cPassword}
-                      name="cPassword"
-                      onChange={handleNewVendorDetails}
-                      label="Confirm Password"
-                      type={hidePassword ? "password" : "text"}
-                      autoComplete="off"
-                      placeholder="Enter Password"
+                      type="number"
+                      label="Phone"
+                      name="phone"
                       required
-                      error={passwordErrorMsg}
+                      value={newVendor.phone}
+                      onChange={handleNewVendorDetails}
+                      autoComplete="off"
+                      placeholder="Enter Phone"
                     />
-                    <span
-                      onClick={() => setHidePassword(!hidePassword)}
-                      className="Icon-Section"
-                    >
-                      {hidePassword ? (
-                        <Icon source={HidePassword} color="subdued" />
-                      ) : (
-                        <Icon source={ShowPassword} color="subdued" />
-                      )}
-                    </span>
-                  </div>
-                </FormLayout.Group>
 
-                <span className="Modal-Select">
-                  <label htmlFor="vendorStatus">Status</label>
-                  <input
-                    id="vendorStatus"
-                    type="checkbox"
+                    <FormLayout.Group>
+                      <div className="Icon-TextFiled">
+                        <InputField
+                          value={newVendor.password}
+                          name="password"
+                          onChange={handleNewVendorDetails}
+                          label="Password"
+                          type={hidePassword ? "password" : "text"}
+                          autoComplete="off"
+                          placeholder="Enter Password"
+                          required
+                          error={passwordErrorMsg}
+                        />
+                        <span
+                          onClick={() => setHidePassword(!hidePassword)}
+                          className="Icon-Section"
+                        >
+                          {hidePassword ? (
+                            <Icon source={HidePassword} color="subdued" />
+                          ) : (
+                            <Icon source={ShowPassword} color="subdued" />
+                          )}
+                        </span>
+                      </div>
+
+                      <div className="Icon-TextFiled">
+                        <InputField
+                          value={newVendor.cPassword}
+                          name="cPassword"
+                          onChange={handleNewVendorDetails}
+                          label="Confirm Password"
+                          type={hidePassword ? "password" : "text"}
+                          autoComplete="off"
+                          placeholder="Enter Password"
+                          required
+                          error={passwordErrorMsg}
+                        />
+                        <span
+                          onClick={() => setHidePassword(!hidePassword)}
+                          className="Icon-Section"
+                        >
+                          {hidePassword ? (
+                            <Icon source={HidePassword} color="subdued" />
+                          ) : (
+                            <Icon source={ShowPassword} color="subdued" />
+                          )}
+                        </span>
+                      </div>
+                    </FormLayout.Group>
+                  </FormLayout>
+                </Card>
+                <Card sectioned title="Address Details">
+                  <FormLayout>
+                    <InputField
+                      type="text"
+                      label="City"
+                      name="city"
+                      value={newVendor.city}
+                      onChange={handleNewVendorDetails}
+                      autoComplete="off"
+                      required
+                      placeholder="Enter City"
+                    />
+                    <FormLayout.Group>
+                      <InputField
+                        type="text"
+                        label="State"
+                        name="state"
+                        value={newVendor.state}
+                        onChange={handleNewVendorDetails}
+                        autoComplete="off"
+                        required
+                        placeholder="Enter State"
+                      />
+                      <InputField
+                        type="text"
+                        label="Zip Code"
+                        name="zipCode"
+                        value={newVendor.zipCode}
+                        onChange={handleNewVendorDetails}
+                        autoComplete="off"
+                        required
+                        placeholder="Enter Zip Code"
+                      />
+                    </FormLayout.Group>
+
+                    <InputField
+                      type="text"
+                      label="Address 1"
+                      name="address_line1"
+                      multiline={"3"}
+                      value={newVendor.address_line1}
+                      onChange={handleNewVendorDetails}
+                      autoComplete="off"
+                      placeholder="Enter Address"
+                    />
+
+                    <InputField
+                      type="text"
+                      label="Address 2 (optional)"
+                      name="address_line2"
+                      multiline={"3"}
+                      value={newVendor.address_line2}
+                      onChange={handleNewVendorDetails}
+                      autoComplete="off"
+                      placeholder="Enter Address"
+                    />
+                  </FormLayout>
+                </Card>
+                <Card sectioned title="Zip Codes">
+                  {productTypesList?.length ? (
+                    <>
+                      <Text as="p" color="subdued">
+                        Enter Zip Codes in below Product Type fields
+                      </Text>
+                      <br />
+                      {productTypesList?.map((item) => {
+                        return (
+                          <>
+                            <Combobox
+                              allowMultiple
+                              activator={
+                                <Combobox.TextField
+                                  autoComplete="off"
+                                  label={item.name}
+                                  value={comboBoxValue[item.id]}
+                                  placeholder="Enter Zip Codes"
+                                  verticalContent={
+                                    selectedTags[item.id]?.length > 0 ? (
+                                      <Stack
+                                        spacing="extraTight"
+                                        alignment="center"
+                                      >
+                                        {selectedTags[item.id].map((tag) => (
+                                          <Tag
+                                            key={`option-${tag}`}
+                                            onRemove={() =>
+                                              updateSelection(tag, item.id)
+                                            }
+                                          >
+                                            {tag}
+                                          </Tag>
+                                        ))}
+                                      </Stack>
+                                    ) : null
+                                  }
+                                  onChange={(e) => handleZipInputs(e, item.id)}
+                                />
+                              }
+                            >
+                              {comboBoxValue[item.id] ? (
+                                <Listbox
+                                  autoSelection={AutoSelection}
+                                  onSelect={(selected) =>
+                                    updateSelection(selected, item.id)
+                                  }
+                                >
+                                  <Listbox.Action
+                                    value={comboBoxValue[item.id]}
+                                  >
+                                    {`Add "${comboBoxValue[item.id]}"`}
+                                  </Listbox.Action>
+                                </Listbox>
+                              ) : null}
+                            </Combobox>
+                            <br />
+                          </>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <Text as="p" color="subdued">
+                      No Product Types Available
+                    </Text>
+                  )}
+                </Card>
+              </Layout.Section>
+              <Layout.Section oneThird>
+                <Card title="Vendor Status" sectioned>
+                  <CustomSelect
                     name="status"
-                    className="tgl tgl-light"
-                    checked={newVendor.status}
+                    value={newVendor.status}
                     onChange={handleNewVendorDetails}
+                    options={[
+                      { label: "Active", value: "1" },
+                      { label: "Draft", value: "0" },
+                    ]}
                   />
-                  <label htmlFor="vendorStatus" className="tgl-btn"></label>
-                </span>
-              </FormLayout>
-            </Card>
-
-            <Card title="Select Market" sectioned>
-              <CustomSelect
-                label="Select Vendor Market"
-                name="market_id"
-                value={newVendor.market_id}
-                onChange={handleNewVendorDetails}
-                options={marketsList}
-              />
-            </Card>
-
-            {/* <Card title="Vendor Information">
-                <Card.Section
-                  actions={[
-                    {
-                      content: "Manage",
-                      onAction: () => {
-                        setTagsModal(true);
-                      },
-                    },
-                  ]}
-                >
-                  <div className="Product-Tags">
-                    <Autocomplete
-                      // actionBefore={
-                      //     console.log('Action Clicked!')
-                      // }
-                      allowMultiple
-                      options={tagOptions}
-                      selected={tagOptionsSelected}
-                      textField={tagTextField}
-                      loading={optionsLoading}
-                      onSelect={setTagOptionsSelected}
-                      listTitle="Available Vendors"
-                    />
-                    {tagsContentMarkup}
-                  </div>
-                </Card.Section>
-              </Card> */}
+                </Card>
+                <Card title="Select Vendor Market" sectioned>
+                  <CustomSelect
+                    name="market_id"
+                    value={newVendor.market_id}
+                    onChange={handleNewVendorDetails}
+                    options={marketsList}
+                  />
+                </Card>
+              </Layout.Section>
+            </Layout>
           </Form>
 
           <div className="Polaris-Product-Actions">

@@ -25,6 +25,7 @@ import {
   OptionList,
   Autocomplete,
   Badge,
+  Layout,
 } from "@shopify/polaris";
 import {
   SearchMinor,
@@ -37,6 +38,7 @@ import {
   InputField,
   CheckBox,
   CustomBadge,
+  CustomSelect,
 } from "../../components";
 import { AppContext } from "../../components/providers/ContextProvider";
 import { useAuthState } from "../../components/providers/AuthProvider";
@@ -73,11 +75,7 @@ export function MarketDetail() {
   });
 
   const handleNewMarketDetails = (e) => {
-    if (e.target.name == "status") {
-      setNewMarket({ ...newMarket, [e.target.name]: e.target.checked });
-    } else {
-      setNewMarket({ ...newMarket, [e.target.name]: e.target.value });
-    }
+    setNewMarket({ ...newMarket, [e.target.name]: e.target.value });
   };
 
   useEffect(() => {
@@ -188,7 +186,7 @@ export function MarketDetail() {
     <Autocomplete.TextField
       autoComplete="off"
       onChange={tagUpdateText}
-      label="Vendors"
+      // label="Vendors"
       value={tagInputValue}
       prefix={<Icon source={SearchMinor} color="base" />}
       placeholder="Select Vendors"
@@ -430,7 +428,7 @@ export function MarketDetail() {
           name: marketResponse?.name,
           description: marketResponse?.description,
           slug: marketResponse?.slug,
-          status: convertNumberToBoolean(marketResponse?.status),
+          status: marketResponse?.status,
         });
         let list = [];
         marketResponse?.cities?.map((item) => {
@@ -511,7 +509,7 @@ export function MarketDetail() {
       name: newMarket.name,
       description: newMarket.description,
       slug: newMarket.slug,
-      toggle: convertBooleanToNumber(newMarket.status),
+      toggle: newMarket.status,
       vendor_id: tagOptionsSelected,
       country_id: checkedVariants.countries,
       state_id: checkedVariants.states,
@@ -608,6 +606,7 @@ export function MarketDetail() {
         </span>
       ) : (
         <Page
+          fullWidth
           breadcrumbs={[{ content: "Markets", onAction: handleDiscardModal }]}
           title={marketName}
           titleMetadata={
@@ -647,90 +646,119 @@ export function MarketDetail() {
                 Submit
               </Button>
             </span>
+            <Layout>
+              <Layout.Section>
+                <Card sectioned title="General Information">
+                  <FormLayout>
+                    <FormLayout.Group>
+                      <InputField
+                        type="text"
+                        label="Name"
+                        name="name"
+                        value={newMarket.name}
+                        onChange={handleNewMarketDetails}
+                        autoComplete="off"
+                        required
+                        placeholder="Enter Name"
+                      />
+                      <InputField
+                        type="text"
+                        label="Slug"
+                        name="slug"
+                        value={newMarket.slug}
+                        onChange={handleNewMarketDetails}
+                        autoComplete="off"
+                        required
+                        placeholder="Slug"
+                      />
+                    </FormLayout.Group>
 
-            <Card sectioned title="General Information">
-              <FormLayout>
-                <FormLayout.Group>
-                  <InputField
-                    type="text"
-                    label="Name"
-                    name="name"
-                    value={newMarket.name}
-                    onChange={handleNewMarketDetails}
-                    autoComplete="off"
-                    required
-                    placeholder="Enter Name"
-                  />
-                  <InputField
-                    type="text"
-                    label="Slug"
-                    name="slug"
-                    value={newMarket.slug}
-                    onChange={handleNewMarketDetails}
-                    autoComplete="off"
-                    required
-                    placeholder="Slug"
-                  />
-                </FormLayout.Group>
+                    <InputField
+                      marginTop
+                      type="text"
+                      label="Description (optional)"
+                      name="description"
+                      value={newMarket.description}
+                      onChange={handleNewMarketDetails}
+                      autoComplete="off"
+                      multiline="4"
+                      placeholder="Enter Description"
+                    />
+                  </FormLayout>
+                </Card>
 
-                <InputField
-                  marginTop
-                  type="text"
-                  label="Description (optional)"
-                  name="description"
-                  value={newMarket.description}
-                  onChange={handleNewMarketDetails}
-                  autoComplete="off"
-                  multiline="4"
-                  placeholder="Enter Description"
-                />
-                <br />
-                <span className="Modal-Select">
-                  <label htmlFor="marketStatus">Status</label>
-                  <input
-                    id="marketStatus"
-                    type="checkbox"
+                <Card sectioned title="Country/State">
+                  <Scrollable className="Market-Edit-Countries-Scroll">
+                    <CheckboxTree
+                      nodes={countriesList}
+                      checked={checkedCountries}
+                      expanded={expandedCountry}
+                      onCheck={(checked) => handleCheckedCountries(checked)}
+                      onExpand={(expanded) => setExpandedCountry(expanded)}
+                      icons={{
+                        check: <img src={FillCheckBox} alt="checkbox" />,
+                        halfCheck: (
+                          <span className="Polaris-Icon-Half-Check">
+                            <svg
+                              viewBox="0 0 20 20"
+                              className="Polaris-Icon__Svg"
+                              focusable="false"
+                              aria-hidden="true"
+                            >
+                              <path d="M14.167 9h-8.334c-.46 0-.833.448-.833 1s.372 1 .833 1h8.334c.46 0 .833-.448.833-1s-.373-1-.833-1"></path>{" "}
+                            </svg>
+                          </span>
+                        ),
+                        uncheck: <img src={EmptyCheckBox} alt="checkbox" />,
+                        expandClose: <Icon source={ChevronDownMinor} />,
+                        expandOpen: <Icon source={ChevronUpMinor} />,
+                      }}
+                    />
+                  </Scrollable>
+                </Card>
+              </Layout.Section>
+              <Layout.Section oneThird>
+                <Card title="Market Status" sectioned>
+                  <CustomSelect
                     name="status"
-                    className="tgl tgl-light"
-                    checked={newMarket.status}
+                    value={newMarket.status}
                     onChange={handleNewMarketDetails}
+                    options={[
+                      { label: "Active", value: "1" },
+                      { label: "Draft", value: "0" },
+                    ]}
                   />
-                  <label htmlFor="marketStatus" className="tgl-btn"></label>
-                </span>
-              </FormLayout>
-            </Card>
+                </Card>
+                <Card
+                  title="Select Vendor"
+                  sectioned
+                  actions={[
+                    {
+                      content: "Manage",
+                      onAction: () => {
+                        setTagsModal(true);
+                      },
+                    },
+                  ]}
+                >
+                  <Autocomplete
+                    // actionBefore={
+                    //     console.log('Action Clicked!')
+                    // }
+                    allowMultiple
+                    options={tagOptions}
+                    selected={tagOptionsSelected}
+                    textField={tagTextField}
+                    loading={optionsLoading}
+                    onSelect={setTagOptionsSelected}
+                    listTitle="Available Vendors"
+                  />
+                  {tagsContentMarkup}
+                </Card>
+              </Layout.Section>
+            </Layout>
 
-            <Card sectioned title="Country/State">
-              <Scrollable className="Market-Edit-Countries-Scroll">
-                <CheckboxTree
-                  nodes={countriesList}
-                  checked={checkedCountries}
-                  expanded={expandedCountry}
-                  onCheck={(checked) => handleCheckedCountries(checked)}
-                  onExpand={(expanded) => setExpandedCountry(expanded)}
-                  icons={{
-                    check: <img src={FillCheckBox} alt="checkbox" />,
-                    halfCheck: (
-                      <span className="Polaris-Icon-Half-Check">
-                        <svg
-                          viewBox="0 0 20 20"
-                          className="Polaris-Icon__Svg"
-                          focusable="false"
-                          aria-hidden="true"
-                        >
-                          <path d="M14.167 9h-8.334c-.46 0-.833.448-.833 1s.372 1 .833 1h8.334c.46 0 .833-.448.833-1s-.373-1-.833-1"></path>{" "}
-                        </svg>
-                      </span>
-                    ),
-                    uncheck: <img src={EmptyCheckBox} alt="checkbox" />,
-                    expandClose: <Icon source={ChevronDownMinor} />,
-                    expandOpen: <Icon source={ChevronUpMinor} />,
-                  }}
-                />
-              </Scrollable>
-            </Card>
-
-            <Card title="Vendor Information">
+            {/* <Card title="Vendor Information">
               <Card.Section
                 actions={[
                   {
@@ -757,7 +785,7 @@ export function MarketDetail() {
                   {tagsContentMarkup}
                 </div>
               </Card.Section>
-            </Card>
+            </Card> */}
           </Form>
 
           <div className="Polaris-Product-Actions">
